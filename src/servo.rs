@@ -4,6 +4,15 @@
 
 extern crate servo;
 
+use std::path::PathBuf;
+use std::rc::Rc;
+use std::cell::{Cell, RefCell};
+
+#[cfg(feature = "force-gtk")]
+use glib_itc::Receiver;
+#[cfg(feature = "force-gtk")]
+use gtk::Continue;
+
 use self::servo::config::servo_version;
 use self::servo::servo_config::opts;
 use self::servo::servo_config::resource_files::set_resources_path;
@@ -17,7 +26,6 @@ use self::servo::style_traits::DevicePixel;
 use self::servo::net_traits::net_error_list::NetError;
 use self::servo::webrender_api;
 use state::BrowserState;
-use std::path::PathBuf;
 
 pub use self::servo::BrowserId;
 pub use self::servo::gl;
@@ -29,9 +37,6 @@ pub use self::servo::msg::constellation_msg::{Key, KeyModifiers, KeyState};
 pub use self::servo::msg::constellation_msg::{SHIFT, CONTROL, ALT, SUPER};
 
 use traits::view::{self, DrawableGeometry};
-
-use std::rc::Rc;
-use std::cell::{Cell, RefCell};
 
 const SHELL_ISSUE_ALIAS: &'static str = "servoshell://issue/servoshell";
 const SERVO_ISSUE_ALIAS: &'static str = "servoshell://issue/servo";
@@ -63,7 +68,7 @@ struct LastMouseDown {
 pub struct Servo {
     // FIXME: it's annoying that event for servo are named "WindowEvent"
     events_for_servo: RefCell<Vec<WindowEvent>>,
-    servo: RefCell<servo::Servo<ServoCallbacks>>,
+    servo: Rc<RefCell<servo::Servo<ServoCallbacks>>>,
     callbacks: Rc<ServoCallbacks>,
     mouse_down: RefCell<Option<LastMouseDown>>,
 }
@@ -81,7 +86,9 @@ impl Servo {
         servo_version()
     }
 
-    pub fn new(geometry: DrawableGeometry, view: Rc<view::ViewMethods>, waker: Box<EventLoopWaker>) -> Servo {
+    pub fn new(geometry: DrawableGeometry, view: Rc<view::ViewMethods>, waker: Box<EventLoopWaker>)
+        -> Servo
+    {
         let callbacks = Rc::new(ServoCallbacks {
             event_queue: RefCell::new(Vec::new()),
             geometry: Cell::new(geometry),
@@ -89,14 +96,23 @@ impl Servo {
             view: view.clone(),
         });
 
-        let servo = servo::Servo::new(callbacks.clone());
+        let servo = Rc::new(RefCell::new(servo::Servo::new(callbacks.clone())));
 
         Servo {
             events_for_servo: RefCell::new(Vec::new()),
-            servo: RefCell::new(servo),
+            servo,
             callbacks: callbacks,
             mouse_down: RefCell::new(None),
         }
+    }
+
+    #[cfg(feature = "force-gtk")]
+    pub fn connect(&self, rx: &mut Receiver) {
+        let servo = self.servo.clone();
+        rx.connect_recv(move || {
+            servo.borrow_mut().handle_events(vec![]);
+            Continue(true)
+        });
     }
 
     pub fn new_browser(&self, url: &str) -> BrowserState {
@@ -283,6 +299,7 @@ impl ServoCallbacks {
 
 impl WindowMethods for ServoCallbacks {
     fn prepare_for_composite(&self, _width: usize, _height: usize) -> bool {
+        self.view.prepare();
         true
     }
 

@@ -234,6 +234,9 @@ impl ViewMethods for View {
         }
     }
 
+    fn prepare(&self) {
+    }
+
     fn swap_buffers(&self) {
         unsafe {
             msg_send![self.context, flushBuffer];

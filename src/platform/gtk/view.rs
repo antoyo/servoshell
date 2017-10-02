@@ -2,28 +2,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use glutin::{self, GlContext};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
-use super::GlutinWindow;
+
+use gtk::{GLAreaExt, WidgetExt, WindowExt};
+use super::GtkWindow;
 use traits::view::*;
 
+// TODO: remove.
+const WINDOW_ID: usize = 0;
+
 pub struct View {
-    id: glutin::WindowId,
-    windows: Rc<RefCell<HashMap<glutin::WindowId, GlutinWindow>>>,
+    windows: Rc<RefCell<Vec<GtkWindow>>>,
 }
 
 impl View {
-    pub fn new(id: glutin::WindowId, windows: Rc<RefCell<HashMap<glutin::WindowId, GlutinWindow>>>) -> View {
-        View { id, windows }
+    pub fn new(windows: Rc<RefCell<Vec<GtkWindow>>>) -> View {
+        View { windows }
     }
 
     #[cfg(not(target_os = "windows"))]
     fn hidpi_factor(&self) -> f32 {
         let windows = self.windows.borrow();
-        let win = windows.get(&self.id).unwrap();
-        win.glutin_window.hidpi_factor()
+        let win = &windows[WINDOW_ID];
+        win.gtk_window.get_scale_factor() as f32
     }
 
     #[cfg(target_os = "windows")]
@@ -35,13 +37,14 @@ impl View {
 impl ViewMethods for View {
     fn get_geometry(&self) -> DrawableGeometry {
         let windows = self.windows.borrow();
-        let win = windows.get(&self.id).unwrap();
-        let (mut width, mut height) = win.glutin_window.get_inner_size().expect("Failed to get window inner size.");
+        let win = &windows[WINDOW_ID];
+        let (width, height) = win.gtk_window.get_size();
+        let (mut width, mut height) = (width as u32, height as u32);
 
         #[cfg(target_os = "windows")]
         let factor = super::utils::windows_hidpi_factor();
         #[cfg(not(target_os = "windows"))]
-        let factor = 1.0;
+        let factor = 1.0f32;
 
         width /= factor as u32;
         height /= factor as u32;
@@ -49,16 +52,16 @@ impl ViewMethods for View {
         DrawableGeometry {
             view_size: (width, height),
             margins: (0, 0, 0, 0),
-            position: win.glutin_window.get_position().expect("Failed to get window position."),
+            position: win.gtk_window.get_position(),
             hidpi_factor: self.hidpi_factor(),
         }
     }
 
     fn update_drawable(&self) {
         let windows = self.windows.borrow();
-        let win = windows.get(&self.id).unwrap();
-        let (w, h) = win.glutin_window.get_inner_size().expect("Failed to get window inner size.");
-        win.glutin_window.resize(w, h);
+        let win = &windows[WINDOW_ID];
+        let (w, h) = win.gtk_window.get_size();
+        win.gtk_window.resize(w, h);
     }
 
     // FIXME: should be controlled by state
@@ -67,7 +70,8 @@ impl ViewMethods for View {
 
     // FIXME: should be controlled by state
     fn exit_fullscreen(&self) {
-        self.windows.borrow().get(&self.id).unwrap().glutin_window.swap_buffers().unwrap();
+        // FIXME
+        //self.windows.borrow().[WINDOW_ID].gtk_window.swap_buffers().unwrap();
     }
 
     fn set_live_resize_callback(&self, _callback: &FnMut()) {
@@ -75,20 +79,25 @@ impl ViewMethods for View {
     }
 
     fn gl(&self) -> Rc<gl::Gl> {
-        self.windows.borrow().get(&self.id).unwrap().gl.clone()
+        self.windows.borrow()[WINDOW_ID].gl.clone()
     }
 
     fn get_events(&self) -> Vec<ViewEvent> {
         let mut windows = self.windows.borrow_mut();
-        let win = windows.get_mut(&self.id).unwrap();
+        let win = &mut windows[WINDOW_ID];
         let events = win.view_events.drain(..).collect();
         events
     }
 
     fn prepare(&self) {
+        let mut windows = self.windows.borrow_mut();
+        let win = &mut windows[WINDOW_ID];
+        win.gl_area.make_current();
     }
 
     fn swap_buffers(&self) {
-        self.windows.borrow().get(&self.id).unwrap().glutin_window.swap_buffers().unwrap();
+        let mut windows = self.windows.borrow_mut();
+        let win = &mut windows[WINDOW_ID];
+        win.gl_area.queue_render();
     }
 }

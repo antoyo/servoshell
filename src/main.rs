@@ -16,11 +16,21 @@ extern crate cocoa;
 #[macro_use]
 extern crate objc;
 
-#[cfg(any(feature = "force-glutin", not(target_os = "macos")))]
+#[cfg(all(not(feature = "force-gtk"), any(feature = "force-glutin", not(target_os = "macos"))))]
 extern crate glutin;
-#[cfg(any(feature = "force-glutin", not(target_os = "macos")))]
+#[cfg(all(not(feature = "force-gtk"), any(feature = "force-glutin", not(target_os = "macos"))))]
 extern crate tinyfiledialogs;
 
+#[cfg(feature = "force-gtk")]
+extern crate epoxy;
+#[cfg(feature = "force-gtk")]
+extern crate gdk;
+#[cfg(feature = "force-gtk")]
+extern crate glib_itc;
+#[cfg(feature = "force-gtk")]
+extern crate gtk;
+#[cfg(feature = "force-gtk")]
+extern crate shared_library;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
@@ -49,6 +59,8 @@ const PKG_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const PKG_NAME: &'static str = env!("CARGO_PKG_NAME");
 
 fn main() {
+    #[cfg(feature = "force-gtk")]
+    gtk::init().unwrap();
 
     let logs = logs::Logger::init();
 
@@ -61,7 +73,10 @@ fn main() {
 
     let resources_path = App::get_resources_path().expect("Can't find resources path");
 
+    #[cfg(not(feature = "force-gtk"))]
     let app = App::new().expect("Can't create application");
+    #[cfg(feature = "force-gtk")]
+    let mut app = App::new().expect("Can't create application");
     let win = app.new_window().expect("Can't create application");
 
     let view = win.new_view().unwrap();
@@ -73,6 +88,10 @@ fn main() {
         let waker = win.new_event_loop_waker();
         Servo::new(geometry, view.clone(), waker)
     };
+    #[cfg(feature = "force-gtk")]
+    let mut rx = app.take_receiver().unwrap();
+    #[cfg(feature = "force-gtk")]
+    servo.connect(&mut rx);
 
     let home_url = resources_path.parent().unwrap().join("shell_resources").join("home.html");
     let home_url = ServoUrl::from_file_path(&home_url).unwrap().into_string();

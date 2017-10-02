@@ -66,5 +66,6 @@ pub trait ViewMethods {
     fn set_live_resize_callback(&self, callback: &FnMut());
     fn gl(&self) -> Rc<gl::Gl>;
     fn get_events(&self) -> Vec<ViewEvent>;
+    fn prepare(&self);
     fn swap_buffers(&self);
 }
