@@ -16,9 +16,17 @@ use glib_itc::{Receiver, Sender, channel};
 use gtk;
 use gtk::{
     ContainerExt,
+    Entry,
+    EntryExt,
     GLArea,
     GLAreaExt,
+    Image,
     Inhibit,
+    SeparatorToolItem,
+    Toolbar,
+    ToolButton,
+    ToolItem,
+    ToolItemExt,
     WidgetExt,
     WindowType,
 };
@@ -29,8 +37,11 @@ use shared_library::dynamic_library::DynamicLibrary;
 use state::AppState;
 use super::utils;
 use traits::app::{AppEvent, AppMethods};
-use traits::view::{gl, KeyModifiers};
-use traits::window::{WindowEvent, WindowMethods};
+use traits::view::{gl, KeyModifiers, MouseScrollDelta, TouchPhase, ViewEvent};
+use traits::window::{WindowCommand, WindowEvent, WindowMethods};
+
+// TODO: remove.
+const WINDOW_ID: usize = 0;
 
 pub struct GtkEventLoopWaker {
     tx: Arc<Mutex<Sender>>,
@@ -149,8 +160,51 @@ impl AppMethods for App {
         let gtk_window = gtk::Window::new(WindowType::Toplevel);
         gtk_window.set_size_request(1024 * factor as i32, 768 * factor as i32);
 
+        let windows = self.windows.clone();
+        gtk_window.connect_scroll_event(move |_, event| {
+            let (dx, dy) = event.get_delta();
+            let dy = dy /* * -38.0 */; // TODO: remove multiplication.
+            let delta = MouseScrollDelta::PixelDelta(dx as f32, dy as f32);
+            let phase = TouchPhase::Moved;
+            let mut windows = windows.borrow_mut();
+            let window: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
+            window.view_events.push(ViewEvent::MouseWheel(delta, phase));
+            Inhibit(false)
+        });
+
         let vbox = gtk::Box::new(Vertical, 0);
         gtk_window.add(&vbox);
+
+        let toolbar = Toolbar::new();
+        vbox.add(&toolbar);
+
+        let previous_button = ToolButton::new(&icon("go-previous"), None);
+        toolbar.add(&previous_button);
+
+        let next_button = ToolButton::new(&icon("go-next"), None);
+        toolbar.add(&next_button);
+
+        toolbar.add(&SeparatorToolItem::new());
+
+        let reload_button = ToolButton::new(&icon("view-refresh"), None);
+        toolbar.add(&reload_button);
+
+        toolbar.add(&SeparatorToolItem::new());
+
+        let url_entry = Entry::new();
+        let url_tool_item = ToolItem::new();
+        url_tool_item.set_expand(true);
+        url_tool_item.add(&url_entry);
+        toolbar.add(&url_tool_item);
+
+        let windows = self.windows.clone();
+        url_entry.connect_activate(move |entry| {
+            let mut windows = windows.borrow_mut();
+            let win: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
+            println!("Loading: {}", entry.get_text().unwrap());
+            win.window_events.push(WindowEvent::DoCommand(WindowCommand::Load(entry.get_text().unwrap())));
+            //callback()
+        });
 
         let gl_area = GLArea::new();
         gl_area.set_auto_render(false);
@@ -158,6 +212,13 @@ impl AppMethods for App {
         gl_area.add_events((POINTER_MOTION_MASK | SCROLL_MASK).bits() as i32);
         gl_area.set_vexpand(true);
         vbox.add(&gl_area);
+
+        let windows = self.windows.clone();
+        gl_area.connect_resize(move |_, _, _| {
+            let mut windows = windows.borrow_mut();
+            let window: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
+            window.view_events.push(ViewEvent::GeometryDidChange);
+        });
 
         gtk_window.connect_delete_event(|_, _| {
             gtk::main_quit();
@@ -200,6 +261,7 @@ impl AppMethods for App {
     }
 
     fn run<T>(&self, mut callback: T) where T: FnMut() {
+        let windows = self.windows.clone();
         gtk::main();
         /*self.event_loop.borrow_mut().run_forever(|e| {
             let mut call_callback = false;
@@ -248,6 +310,9 @@ impl AppMethods for App {
             }
             glutin::ControlFlow::Continue
         });*/
-        callback()
     }
+}
+
+fn icon(name: &str) -> Image {
+    Image::new_from_file(format!("images/{}.png", name))
 }
