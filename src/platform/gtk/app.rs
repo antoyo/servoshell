@@ -60,6 +60,7 @@ impl EventLoopWaker for GtkEventLoopWaker {
 }
 
 pub struct App {
+    call_callback: Rc<Cell<bool>>,
     event_loop_waker: Box<EventLoopWaker>,
     rx: Option<Receiver>,
     windows: Rc<RefCell<Vec<GtkWindow>>>,
@@ -99,15 +100,17 @@ impl App {
 
 impl AppMethods for App {
     fn new<'a>() -> Result<App, &'a str> {
+        let call_callback = Rc::new(Cell::new(false));
         let (tx, rx) = channel();
         let event_loop_waker = Box::new(GtkEventLoopWaker {
             tx: Arc::new(Mutex::new(tx)),
         });
         let windows = Rc::new(RefCell::new(vec![]));
         Ok(App {
-            windows,
+            call_callback,
             event_loop_waker,
             rx: Some(rx),
+            windows,
         })
     }
 
@@ -197,13 +200,16 @@ impl AppMethods for App {
         url_tool_item.add(&url_entry);
         toolbar.add(&url_tool_item);
 
+        let call_callback = self.call_callback.clone();
         let windows = self.windows.clone();
         url_entry.connect_activate(move |entry| {
             let mut windows = windows.borrow_mut();
             let win: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
             println!("Loading: {}", entry.get_text().unwrap());
             win.window_events.push(WindowEvent::DoCommand(WindowCommand::Load(entry.get_text().unwrap())));
-            //callback()
+            // FIXME: need to call:
+            call_callback.set(true);
+            println!("Set to true");
         });
 
         let gl_area = GLArea::new();
@@ -262,7 +268,17 @@ impl AppMethods for App {
 
     fn run<T>(&self, mut callback: T) where T: FnMut() {
         let windows = self.windows.clone();
-        gtk::main();
+        // FIXME: perhaps can manually do the event loop and use gtk_get_current_event().
+        //gtk::main();
+        while gtk::events_pending() {
+            println!("Iteration");
+            gtk::main_iteration();
+            /*if self.call_callback.get() {
+                println!("Call callback");
+                callback();
+                self.call_callback.set(false);
+            }*/
+        }
         /*self.event_loop.borrow_mut().run_forever(|e| {
             let mut call_callback = false;
             match e {
