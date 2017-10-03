@@ -26,6 +26,8 @@ extern crate epoxy;
 #[cfg(feature = "force-gtk")]
 extern crate gdk;
 #[cfg(feature = "force-gtk")]
+extern crate glib;
+#[cfg(feature = "force-gtk")]
 extern crate glib_itc;
 #[cfg(feature = "force-gtk")]
 extern crate gtk;

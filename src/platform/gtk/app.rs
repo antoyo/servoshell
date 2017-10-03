@@ -62,6 +62,7 @@ impl EventLoopWaker for GtkEventLoopWaker {
 pub struct App {
     call_callback: Rc<Cell<bool>>,
     event_loop_waker: Box<EventLoopWaker>,
+    is_running: Rc<Cell<bool>>,
     rx: Option<Receiver>,
     windows: Rc<RefCell<Vec<GtkWindow>>>,
 }
@@ -100,15 +101,15 @@ impl App {
 
 impl AppMethods for App {
     fn new<'a>() -> Result<App, &'a str> {
-        let call_callback = Rc::new(Cell::new(false));
         let (tx, rx) = channel();
         let event_loop_waker = Box::new(GtkEventLoopWaker {
             tx: Arc::new(Mutex::new(tx)),
         });
         let windows = Rc::new(RefCell::new(vec![]));
         Ok(App {
-            call_callback,
+            call_callback: Rc::new(Cell::new(false)),
             event_loop_waker,
+            is_running: Rc::new(Cell::new(true)),
             rx: Some(rx),
             windows,
         })
@@ -205,11 +206,8 @@ impl AppMethods for App {
         url_entry.connect_activate(move |entry| {
             let mut windows = windows.borrow_mut();
             let win: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
-            println!("Loading: {}", entry.get_text().unwrap());
             win.window_events.push(WindowEvent::DoCommand(WindowCommand::Load(entry.get_text().unwrap())));
-            // FIXME: need to call:
             call_callback.set(true);
-            println!("Set to true");
         });
 
         let gl_area = GLArea::new();
@@ -226,8 +224,9 @@ impl AppMethods for App {
             window.view_events.push(ViewEvent::GeometryDidChange);
         });
 
-        gtk_window.connect_delete_event(|_, _| {
-            gtk::main_quit();
+        let is_running = self.is_running.clone();
+        gtk_window.connect_delete_event(move |_, _| {
+            is_running.set(false);
             Inhibit(false)
         });
 
@@ -268,16 +267,15 @@ impl AppMethods for App {
 
     fn run<T>(&self, mut callback: T) where T: FnMut() {
         let windows = self.windows.clone();
-        // FIXME: perhaps can manually do the event loop and use gtk_get_current_event().
-        //gtk::main();
-        while gtk::events_pending() {
-            println!("Iteration");
-            gtk::main_iteration();
-            /*if self.call_callback.get() {
-                println!("Call callback");
-                callback();
-                self.call_callback.set(false);
-            }*/
+        // TODO: use gtk::main() and don't use the simulation of event loop approach for the gtk binding.
+        while self.is_running.get() {
+            if gtk::events_pending() {
+                gtk::main_iteration();
+                if self.call_callback.get() {
+                    callback();
+                    self.call_callback.set(false);
+                }
+            }
         }
         /*self.event_loop.borrow_mut().run_forever(|e| {
             let mut call_callback = false;
