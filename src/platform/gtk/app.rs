@@ -262,7 +262,9 @@ impl AppMethods for App {
 
     fn run<T>(&self, mut callback: T) where T: FnMut() {
         let windows = self.windows.clone();
-        gtk::main();
+        while gtk::events_pending() {
+            gtk::main_iteration();
+        }
         /*self.event_loop.borrow_mut().run_forever(|e| {
             let mut call_callback = false;
             match e {
