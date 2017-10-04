@@ -15,6 +15,8 @@ use gdk::{POINTER_MOTION_MASK, SCROLL_MASK};
 use glib_itc::{Receiver, Sender, channel};
 use gtk;
 use gtk::{
+    Button,
+    ButtonExt,
     ContainerExt,
     Entry,
     EntryExt,
@@ -22,6 +24,9 @@ use gtk::{
     GLAreaExt,
     Image,
     Inhibit,
+    Notebook,
+    NotebookExt,
+    PackType,
     SeparatorToolItem,
     Toolbar,
     ToolButton,
@@ -231,12 +236,37 @@ impl AppMethods for App {
             call_callback.set(true);
         });
 
+        let tabs = Notebook::new();
+        let new_tab_button = Button::new_with_label("+");
+        tabs.set_action_widget(&new_tab_button, PackType::End);
+        vbox.add(&tabs);
+
+        let call_callback = self.call_callback.clone();
+        let windows = self.windows.clone();
+        tabs.connect_switch_page(move |_, _, index| {
+            let mut windows = windows.borrow_mut();
+            if let Some(win) = windows.get_mut(WINDOW_ID) {
+                win.window_events.push(WindowEvent::DoCommand(WindowCommand::SelectTab(index as usize)));
+                call_callback.set(true);
+            }
+        });
+
+        let call_callback = self.call_callback.clone();
+        let windows = self.windows.clone();
+        new_tab_button.connect_clicked(move |_| {
+            let mut windows = windows.borrow_mut();
+            let win: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
+            win.window_events.push(WindowEvent::DoCommand(WindowCommand::NewTab));
+            call_callback.set(true);
+        });
+        new_tab_button.show();
+
         let gl_area = GLArea::new();
         gl_area.set_auto_render(false);
         gl_area.set_has_depth_buffer(true);
         gl_area.add_events((POINTER_MOTION_MASK | SCROLL_MASK).bits() as i32);
         gl_area.set_vexpand(true);
-        vbox.add(&gl_area);
+        tabs.add(&gl_area);
 
         let call_callback = self.call_callback.clone();
         let windows = self.windows.clone();
@@ -323,6 +353,7 @@ impl AppMethods for App {
             event_loop_waker: self.event_loop_waker.clone(),
             key_modifiers: Cell::new(KeyModifiers::empty()),
             last_pressed_key: Cell::new(None),
+            tabs,
             view_events: vec![],
             window_events: vec![],
             mouse_coordinate: (0, 0),

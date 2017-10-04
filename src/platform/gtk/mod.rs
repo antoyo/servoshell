@@ -28,6 +28,7 @@ pub struct GtkWindow {
     key_modifiers: Cell<KeyModifiers>,
     last_pressed_key: Cell<Option<Key>>,
     mouse_coordinate: (i32, i32),
+    tabs: gtk::Notebook,
     view_events: Vec<ViewEvent>,
     window_events: Vec<WindowEvent>,
 }
