@@ -166,11 +166,10 @@ impl AppMethods for App {
 
         let windows = self.windows.clone();
         let call_callback = self.call_callback.clone();
-        // TODO: move to gl_area.
         gtk_window.connect_scroll_event(move |_, event| {
             let (dx, dy) = event.get_delta();
-            let dy = dy /* * -38.0 */; // TODO: remove multiplication.
-            let delta = MouseScrollDelta::PixelDelta(dx as f32, dy as f32);
+            let dy = -dy;
+            let delta = MouseScrollDelta::LineDelta(dx as f32, dy as f32);
             let phase = TouchPhase::Moved;
             let mut windows = windows.borrow_mut();
             let window: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
@@ -222,11 +221,28 @@ impl AppMethods for App {
 
         let call_callback = self.call_callback.clone();
         let windows = self.windows.clone();
-        gl_area.connect_resize(move |_, _, _| {
+        gtk_window.connect_configure_event(move |_, _| {
+            // FIXME: it seems that normal resize works well for the resize, but not switching to
+            // floating mode.
+            // FIXME: black window after resize.
+            println!("Configure");
             let mut windows = windows.borrow_mut();
             let window: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
             window.view_events.push(ViewEvent::GeometryDidChange);
             call_callback.set(true);
+            false
+        });
+
+        let call_callback = self.call_callback.clone();
+        let windows = self.windows.clone();
+        gl_area.connect_motion_notify_event(move |_, event| {
+            let (x, y) = event.get_position();
+            let mut windows = windows.borrow_mut();
+            let window: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
+            window.mouse_coordinate = (x as i32, y as i32);
+            window.view_events.push(ViewEvent::MouseMoved(x as i32, y as i32));
+            call_callback.set(true);
+            Inhibit(false)
         });
 
         let is_running = self.is_running.clone();

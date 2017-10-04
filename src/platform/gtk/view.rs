@@ -38,8 +38,8 @@ impl ViewMethods for View {
     fn get_geometry(&self) -> DrawableGeometry {
         let windows = self.windows.borrow();
         let win = &windows[WINDOW_ID];
-        let (width, height) = win.gtk_window.get_size();
-        let (mut width, mut height) = (width as u32, height as u32);
+        let allocation = win.gl_area.get_allocation();
+        let (mut width, mut height) = (allocation.width as u32, allocation.height as u32);
 
         #[cfg(target_os = "windows")]
         let factor = super::utils::windows_hidpi_factor();
@@ -49,10 +49,20 @@ impl ViewMethods for View {
         width /= factor as u32;
         height /= factor as u32;
 
+        println!("Get x, y");
+        let (x, y) =
+            win.gl_area.get_toplevel()
+                .and_then(|widget| {
+                          let res = win.gl_area.translate_coordinates(&widget, allocation.x, allocation.y);
+                          println!("{:?}", res);
+                          res
+                })
+                .unwrap_or((allocation.x, allocation.y));
+
         DrawableGeometry {
             view_size: (width, height),
             margins: (0, 0, 0, 0),
-            position: win.gtk_window.get_position(),
+            position: (x, y),
             hidpi_factor: self.hidpi_factor(),
         }
     }
