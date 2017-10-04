@@ -73,28 +73,6 @@ impl GtkWindow {
 
     pub fn glutin_event_to_view_event(&mut self/*, event: &glutin::WindowEvent*/) -> Option<ViewEvent> {
         /*match *event {
-            glutin::WindowEvent::Resized(..) => {
-                Some(ViewEvent::GeometryDidChange)
-            }
-            glutin::WindowEvent::MouseMoved{position: (x, y), ..} => {
-                self.mouse_coordinate = (x as i32, y as i32);
-                Some(ViewEvent::MouseMoved(x as i32, y as i32))
-            }
-            glutin::WindowEvent::MouseWheel{delta, phase, ..} => {
-                let delta = match delta {
-                    // FIXME: magic value
-                    glutin::MouseScrollDelta::LineDelta(dx, dy) => MouseScrollDelta::LineDelta(dx, dy),
-                    glutin::MouseScrollDelta::PixelDelta(dx, dy) => MouseScrollDelta::PixelDelta(dx, dy),
-                };
-                let phase = match phase {
-                    glutin::TouchPhase::Started => TouchPhase::Started,
-                    glutin::TouchPhase::Moved => TouchPhase::Moved,
-                    glutin::TouchPhase::Ended => TouchPhase::Ended,
-                    // FIXME:
-                    glutin::TouchPhase::Cancelled => TouchPhase::Ended,
-                };
-                Some(ViewEvent::MouseWheel(delta, phase))
-            }
             glutin::WindowEvent::MouseInput{state, button: glutin::MouseButton::Left, ..} => {
                 let state = match state {
                     glutin::ElementState::Released => ElementState::Released,
@@ -153,10 +131,6 @@ impl GtkWindow {
                 } else {
                     None
                 }
-            }
-
-            _ => {
-                None /* FIXME */
             }
         }*/
         None

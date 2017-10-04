@@ -25,6 +25,7 @@ use gtk::{
     SeparatorToolItem,
     Toolbar,
     ToolButton,
+    ToolButtonExt,
     ToolItem,
     ToolItemExt,
     WidgetExt,
@@ -37,7 +38,7 @@ use shared_library::dynamic_library::DynamicLibrary;
 use state::AppState;
 use super::utils;
 use traits::app::{AppEvent, AppMethods};
-use traits::view::{gl, KeyModifiers, MouseScrollDelta, TouchPhase, ViewEvent};
+use traits::view::{gl, ElementState, KeyModifiers, MouseButton, MouseScrollDelta, TouchPhase, ViewEvent};
 use traits::window::{WindowCommand, WindowEvent, WindowMethods};
 
 // TODO: remove.
@@ -187,8 +188,26 @@ impl AppMethods for App {
         let previous_button = ToolButton::new(&icon("go-previous"), None);
         toolbar.add(&previous_button);
 
+        let call_callback = self.call_callback.clone();
+        let windows = self.windows.clone();
+        previous_button.connect_clicked(move |_| {
+            let mut windows = windows.borrow_mut();
+            let win: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
+            win.window_events.push(WindowEvent::DoCommand(WindowCommand::NavigateBack));
+            call_callback.set(true);
+        });
+
         let next_button = ToolButton::new(&icon("go-next"), None);
         toolbar.add(&next_button);
+
+        let call_callback = self.call_callback.clone();
+        let windows = self.windows.clone();
+        next_button.connect_clicked(move |_| {
+            let mut windows = windows.borrow_mut();
+            let win: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
+            win.window_events.push(WindowEvent::DoCommand(WindowCommand::NavigateForward));
+            call_callback.set(true);
+        });
 
         toolbar.add(&SeparatorToolItem::new());
 
@@ -231,6 +250,32 @@ impl AppMethods for App {
             window.view_events.push(ViewEvent::GeometryDidChange);
             call_callback.set(true);
             false
+        });
+
+        let call_callback = self.call_callback.clone();
+        let windows = self.windows.clone();
+        gtk_window.connect_button_press_event(move |_, event_button| {
+            println!("Button press");
+            let mut windows = windows.borrow_mut();
+            let window: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
+            let (x, y) = event_button.get_position();
+            println!("{}, {}", x, y);
+            window.view_events.push(ViewEvent::MouseInput(ElementState::Pressed, MouseButton::Left, x as i32, y as i32));
+            call_callback.set(true);
+            Inhibit(false)
+        });
+
+        let call_callback = self.call_callback.clone();
+        let windows = self.windows.clone();
+        gtk_window.connect_button_release_event(move |_, event_button| {
+            println!("Button release");
+            let mut windows = windows.borrow_mut();
+            let window: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
+            let (x, y) = event_button.get_position();
+            println!("{}, {}", x, y);
+            window.view_events.push(ViewEvent::MouseInput(ElementState::Released, MouseButton::Left, x as i32, y as i32));
+            call_callback.set(true);
+            Inhibit(false)
         });
 
         let call_callback = self.call_callback.clone();
