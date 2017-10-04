@@ -165,6 +165,8 @@ impl AppMethods for App {
         gtk_window.set_size_request(1024 * factor as i32, 768 * factor as i32);
 
         let windows = self.windows.clone();
+        let call_callback = self.call_callback.clone();
+        // TODO: move to gl_area.
         gtk_window.connect_scroll_event(move |_, event| {
             let (dx, dy) = event.get_delta();
             let dy = dy /* * -38.0 */; // TODO: remove multiplication.
@@ -173,6 +175,7 @@ impl AppMethods for App {
             let mut windows = windows.borrow_mut();
             let window: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
             window.view_events.push(ViewEvent::MouseWheel(delta, phase));
+            call_callback.set(true);
             Inhibit(false)
         });
 
@@ -217,11 +220,13 @@ impl AppMethods for App {
         gl_area.set_vexpand(true);
         vbox.add(&gl_area);
 
+        let call_callback = self.call_callback.clone();
         let windows = self.windows.clone();
         gl_area.connect_resize(move |_, _, _| {
             let mut windows = windows.borrow_mut();
             let window: &mut GtkWindow = windows.get_mut(WINDOW_ID).unwrap();
             window.view_events.push(ViewEvent::GeometryDidChange);
+            call_callback.set(true);
         });
 
         let is_running = self.is_running.clone();
